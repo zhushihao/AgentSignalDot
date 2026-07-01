@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentSignalBar.Core\AgentSignalBar.Core.csproj" />
+    <ProjectReference Include="..\AgentSignalBar.Cli\AgentSignalBar.Cli.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopyAgentSignalCli" AfterTargets="Build">
+    <ItemGroup>
+      <AgentSignalCliFiles Include="..\AgentSignalBar.Cli\bin\$(Configuration)\net8.0\agent-signal.exe" />
+      <AgentSignalCliFiles Include="..\AgentSignalBar.Cli\bin\$(Configuration)\net8.0\agent-signal.dll" />
+      <AgentSignalCliFiles Include="..\AgentSignalBar.Cli\bin\$(Configuration)\net8.0\agent-signal.deps.json" />
+      <AgentSignalCliFiles Include="..\AgentSignalBar.Cli\bin\$(Configuration)\net8.0\agent-signal.runtimeconfig.json" />
+      <AgentSignalCliFiles Include="..\AgentSignalBar.Cli\bin\$(Configuration)\net8.0\AgentSignalBar.Core.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(AgentSignalCliFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

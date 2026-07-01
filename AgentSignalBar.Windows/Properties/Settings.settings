@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="uri:settings" CurrentProfile="(Default)">
+  <Profiles>
+    <Profile Name="(Default)" />
+  </Profiles>
+  <Settings>
+    <Setting Name="BackdropMode" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Mica</Value>
+    </Setting>
+    <Setting Name="ShowFloatingSignal" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">true</Value>
+    </Setting>
+    <Setting Name="FloatingSignalX" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">-1</Value>
+    </Setting>
+    <Setting Name="FloatingSignalY" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">-1</Value>
+    </Setting>
+    <Setting Name="FloatingSignalPosition" Type="System.String" Scope="User">
+      <Value Profile="(Default)">TopRight</Value>
+    </Setting>
+    <Setting Name="IsPositionLocked" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">true</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>
