@@ -1,0 +1,35 @@
+language: "zh-CN"
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+
+  path_filters:
+    - "!**/bin/**"
+    - "!**/obj/**"
+    - "!**/*.sln"
+    - "!**/*.csproj.user"
+    - "!**/packages/**"
+
+  path_instructions:
+    - path: "AgentSignalBar.Windows/**/*.cs"
+      instructions: |
+        关注 WinForms 生命周期、句柄泄漏、GDI 资源释放、定时器Dispose、窗口置顶逻辑。
+    - path: "AgentSignalBar.Core/**/*.cs"
+      instructions: |
+        关注状态机正确性、并发读写、JSON 序列化异常处理、hooks 安装幂等性。
+    - path: "AgentSignalBar.Cli/**/*.cs"
+      instructions: |
+        关注命令行参数解析、退出码、stdin 处理、跨平台兼容性。
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches: ["master"]
+
+  chat:
+    auto_reply: true

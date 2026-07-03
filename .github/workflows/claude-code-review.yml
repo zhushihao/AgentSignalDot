@@ -1,0 +1,67 @@
+name: Claude Code Deep Review
+
+on:
+  pull_request:
+    types: [labeled, synchronize]
+
+jobs:
+  deep-review:
+    if: contains(github.event.pull_request.labels.*.name, 'deep-review')
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 准备 diff
+        shell: powershell -ExecutionPolicy Bypass -Command "{0}"
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git config --global --add safe.directory "$PWD"
+          git check-ref-format --allow-onelevel $env:BASE_REF
+          git fetch origin $env:BASE_REF
+          git diff "origin/$env:BASE_REF" | Out-File -FilePath pr_diff.patch -Encoding utf8
+
+      - name: 运行 Claude Code 深度审查
+        shell: powershell -ExecutionPolicy Bypass -Command "{0}"
+        run: |
+          $prompt = "请按照 .github/review_prompts/deep_review.md 审查 pr_diff.patch，输出为 JSON 格式"
+          $output = (claude -p --bare --allowed-tools Read,Grep -- $prompt) -Join "`n"
+          [System.IO.File]::WriteAllText("claude_review_report.json", $output, [System.Text.Encoding]::UTF8)
+
+      - name: 发布审查报告
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const raw = fs.readFileSync(path.join(process.env.GITHUB_WORKSPACE, 'claude_review_report.json'), 'utf8');
+            let report;
+            try {
+              const match = raw.match(/```json\s*([\s\S]*?)\s*```/);
+              report = match ? JSON.parse(match[1]) : JSON.parse(raw);
+            } catch (e) {
+              report = { summary: "解析失败", severity: "warning", findings: [], action_required: [] };
+            }
+            const blocking = report.findings?.filter(f => f.severity === 'blocking') || [];
+            const conclusion = blocking.length > 0 ? 'failure' : 'success';
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Claude Code Deep Review',
+              head_sha: process.env.HEAD_SHA,
+              status: 'completed',
+              conclusion,
+              output: { title: conclusion === 'failure' ? '发现阻塞项' : '通过', summary: report.summary }
+            });
