@@ -47,7 +47,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         refreshTimer = new System.Windows.Forms.Timer
         {
-            Interval = 500
+            Interval = 250
         };
         refreshTimer.Tick += (_, _) =>
         {
