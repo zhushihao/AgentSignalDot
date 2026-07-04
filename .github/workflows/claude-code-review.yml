@@ -30,11 +30,16 @@ jobs:
           git fetch origin $env:BASE_REF
           git diff "origin/$env:BASE_REF" | Out-File -FilePath pr_diff.patch -Encoding utf8
 
-      - name: 运行 Claude Code 深度审查
+      - name: 安装并运行 Claude Code 深度审查
         shell: powershell -ExecutionPolicy Bypass -Command "{0}"
         run: |
+          $claude = Get-Command claude -ErrorAction SilentlyContinue
+          if (-not $claude) {
+            npm install -g @anthropic-ai/claude-code
+            $env:PATH = "$env:PATH;$env:APPDATA\npm"
+          }
           $prompt = "请按照 .github/review_prompts/deep_review.md 审查 pr_diff.patch，输出为 JSON 格式"
-          $output = (claude -p --bare --allowed-tools Read,Grep -- $prompt) -Join "`n"
+          $output = ($prompt | claude -p --bare --allowed-tools Read,Grep) -Join "`n"
           [System.IO.File]::WriteAllText("claude_review_report.json", $output, [System.Text.Encoding]::UTF8)
 
       - name: 发布审查报告
