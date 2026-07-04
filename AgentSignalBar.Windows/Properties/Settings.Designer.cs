@@ -50,7 +50,7 @@ internal sealed partial class Settings : global::System.Configuration.Applicatio
     }
 
     [global::System.Configuration.UserScopedSettingAttribute()]
-    [global::System.Configuration.DefaultSettingValueAttribute("True")]
+    [global::System.Configuration.DefaultSettingValueAttribute("False")]
     public bool IsPositionLocked
     {
         get => (bool)this[nameof(IsPositionLocked)];
