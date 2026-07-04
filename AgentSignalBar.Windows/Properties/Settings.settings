@@ -20,7 +20,7 @@
       <Value Profile="(Default)">TopRight</Value>
     </Setting>
     <Setting Name="IsPositionLocked" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">true</Value>
+      <Value Profile="(Default)">false</Value>
     </Setting>
   </Settings>
 </SettingsFile>
