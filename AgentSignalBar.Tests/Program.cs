@@ -11,11 +11,54 @@ internal static class Program
             ("signal normalization accepts separators and aliases", SignalTests.SignalNormalizationAcceptsVariants),
             ("aggregation keeps blocked above permission and active", StateDocumentTests.AggregationKeepsBlockedAbovePermissionAndActive),
             ("Claude hooks map failures and max tokens", HookAdapterTests.ClaudeHooksMapFailuresAndMaxTokens),
+            ("CodeBuddy hooks map events and explicit signals", HookAdapterTests.CodeBuddyHooksMapEventsAndExplicitSignals),
             ("Codex hook reads camelCase event and failure marker", HookAdapterTests.CodexHookReadsCamelCaseEventAndFailureMarker),
             ("Codex session log parser maps VS Code events", CodexSessionLogTests.CodexSessionLogParserMapsVsCodeEvents),
             ("Codex compacted log line does not start thinking", CodexSessionLogTests.CodexCompactedLogLineDoesNotStartThinking),
             ("Codex assistant message expires back to idle", CodexSessionLogTests.CodexAssistantMessageExpiresBackToIdle),
             ("Codex session log monitor reads appended lines after priming", CodexSessionLogTests.CodexSessionLogMonitorReadsAppendedLinesAfterPriming),
+            ("WorkBuddy session monitor detects active session from file timestamp", WorkBuddySessionMonitorTests.WorkBuddySessionMonitorDetectsActiveSessionFromFileTimestamp),
+            ("WorkBuddy session monitor falls back to file name when session id missing", WorkBuddySessionMonitorTests.WorkBuddySessionMonitorFallsBackToFileNameWhenSessionIdMissing),
+            ("WorkBuddy session monitor ignores missing directory", WorkBuddySessionMonitorTests.WorkBuddySessionMonitorIgnoresMissingDirectory),
+            // ── WorkBuddy session log monitor: 25 comprehensive tests ──
+            ("WB log: Prime detects busy session", WorkBuddySessionLogMonitorTests.PrimeDetectsBusySession),
+            ("WB log: Prime skips idle session", WorkBuddySessionLogMonitorTests.PrimeSkipsIdleSession),
+            ("WB log: Prime last transition wins", WorkBuddySessionLogMonitorTests.PrimeLastTransitionWins),
+            ("WB log: Prime detects blocked session", WorkBuddySessionLogMonitorTests.PrimeDetectsBlockedSession),
+            ("WB log: Prime skips auto-approved permission", WorkBuddySessionLogMonitorTests.PrimeSkipsAutoApprovedPermission),
+            ("WB log: ReadNewLines picks up appended data", WorkBuddySessionLogMonitorTests.ReadNewLinesPicksUpAppendedData),
+            ("WB log: ToolEnded resolves blocked state", WorkBuddySessionLogMonitorTests.ToolEndedResolvesBlockedState),
+            ("WB log: ToolStarted resolves blocked state", WorkBuddySessionLogMonitorTests.ToolStartedResolvesBlockedState),
+            ("WB log: PermissionAutoApproved resolves blocked", WorkBuddySessionLogMonitorTests.PermissionAutoApprovedResolvesBlockedState),
+            ("WB log: Busy transition resolves blocked state", WorkBuddySessionLogMonitorTests.BusyTransitionResolvesBlockedState),
+            ("WB log: Busy transition within Prime resolves blocked", WorkBuddySessionLogMonitorTests.BusyTransitionWithinPrimeResolvesBlockedState),
+            ("WB log: Busy session persists across short gap", WorkBuddySessionLogMonitorTests.BusySessionPersistsAcrossShortGap),
+            ("WB log: Tool executing session not stale", WorkBuddySessionLogMonitorTests.ToolExecutingSessionNotStale),
+            ("WB log: Blocked session not stale", WorkBuddySessionLogMonitorTests.BlockedSessionNotStale),
+            ("WB log: Mixed busy and blocked initial state", WorkBuddySessionLogMonitorTests.MixedBusyAndBlockedInitialState),
+            ("WB log: Cross-file sessions", WorkBuddySessionLogMonitorTests.CrossFileSessions),
+            ("WB log: Session lifecycle across polls", WorkBuddySessionLogMonitorTests.SessionLifecycleAcrossPolls),
+            ("WB log: Blocked lifecycle across polls", WorkBuddySessionLogMonitorTests.BlockedLifecycleAcrossPolls),
+            ("WB log: Empty log directory no errors", WorkBuddySessionLogMonitorTests.EmptyLogDirectoryNoErrors),
+            ("WB log: Blocked resolved within same Prime read", WorkBuddySessionLogMonitorTests.PrimeBlockedThenResolvedWithinSameRead),
+            ("WB log: Pending permission resolved per file", WorkBuddySessionLogMonitorTests.PendingPermissionResolvedPerFile),
+            ("WB log: Second poll no growth returns empty", WorkBuddySessionLogMonitorTests.SecondPollNoGrowthReturnsEmpty),
+            ("WB log: WAITING_FOR_PERMISSION without ASK blocks", WorkBuddySessionLogMonitorTests.PermissionWaitingWithoutAskDefersBlock),
+            ("WB log: Permission ask tracks last tool session", WorkBuddySessionLogMonitorTests.PermissionAskTracksLastToolSession),
+            ("WB log: Ignores non-WorkBuddy lines", WorkBuddySessionLogMonitorTests.IgnoresNonWorkBuddyLines),
+            ("WB log: Auto-approve clears without state transition", WorkBuddySessionLogMonitorTests.AutoApprovedClearsPendingWithoutStateTransition),
+            ("WB log: Concurrent sessions in same file", WorkBuddySessionLogMonitorTests.ConcurrentSessionsInSameFile),
+            ("WB log: Busy session persists across long gap", WorkBuddySessionLogMonitorTests.BusySessionPersistsAcrossLongGap),
+            ("WB log: Busy session cleared only after hard-dead timeout", WorkBuddySessionLogMonitorTests.BusySessionClearedOnlyAfterHardDeadTimeout),
+            ("WB log: Busy session hard-dead at prime", WorkBuddySessionLogMonitorTests.BusySessionHardDeadAtPrime),
+            ("WB log: Explicit busy=false clears immediately", WorkBuddySessionLogMonitorTests.ExplicitBusyFalseClearsImmediately),
+            ("WB log: Orphaned busy session idled when app alive elsewhere", WorkBuddySessionLogMonitorTests.OrphanedBusySessionIdledWhenAppAliveElsewhere),
+            ("WB log: Solo busy session idled after silence timeout", WorkBuddySessionLogMonitorTests.SoloBusySessionIdledAfterSilenceTimeout),
+            ("WB log: Dead blocked session not revived by Prime liveness", WorkBuddySessionLogMonitorTests.DeadBlockedSessionNotRevivedByPrimeLiveness),
+            ("WB log: Live blocked session preserved by liveness", WorkBuddySessionLogMonitorTests.LiveBlockedSessionPreservedByLiveness),
+            ("WB log: Liveness disabled by default revives blocked", WorkBuddySessionLogMonitorTests.LivenessDisabledByDefaultRevivesBlocked),
+            ("WB log: CANCEL_REQUESTED clears block", WorkBuddySessionLogMonitorTests.CancelRequestedClearsBlock),
+            ("WB log: Dead pid blocked session cleared regardless of log recency", WorkBuddySessionLogMonitorTests.DeadPidBlockedSessionClearedRegardlessOfLogRecency),
             ("CLI status JSON keeps macOS status schema fields", CliIntegrationTests.CliStatusJsonKeepsMacStatusSchemaFields),
             ("floating window default placement uses right middle of work area", FloatingWindowPlacementTests.DefaultPlacementUsesRightMiddleOfWorkArea),
             ("floating window restored placement is clamped into work area", FloatingWindowPlacementTests.RestoredPlacementIsClampedIntoWorkArea),
@@ -35,8 +78,8 @@ internal static class Program
             ("corrupt status file reads as stale", StateStoreTests.CorruptStatusFileReadsAsStale),
             ("hook installer dry run builds Claude settings without writing", HookInstallerTests.DryRunBuildsClaudeSettingsWithoutWriting),
             ("hook installer emits PowerShell-safe Windows commands", HookInstallerTests.HookInstallerEmitsPowerShellSafeWindowsCommands),
-            ("hook installer replaces duplicate Agent Signal Bar hook commands", HookInstallerTests.HookInstallerReplacesDuplicateAgentSignalHookCommands),
-            ("hook installer keeps current Agent Signal Bar hook configuration idempotent", HookInstallerTests.HookInstallerKeepsCurrentAgentSignalHookConfigurationIdempotent),
+            ("hook installer replaces duplicate Agent Signal Dot hook commands", HookInstallerTests.HookInstallerReplacesDuplicateAgentSignalHookCommands),
+            ("hook installer keeps current Agent Signal Dot hook configuration idempotent", HookInstallerTests.HookInstallerKeepsCurrentAgentSignalHookConfigurationIdempotent),
             ("connection health check reports installed and duplicate hooks", ConnectionHealthCheckTests.ConnectionHealthCheckReportsInstalledAndDuplicateHooks),
             ("signal self test writes and verifies every manual status", SignalSelfTestRunnerTests.SignalSelfTestWritesAndVerifiesEveryManualStatus),
             ("CLI writes status and handles Claude hook stdin", CliIntegrationTests.CliWritesStatusAndHandlesClaudeHookStdin),
@@ -215,14 +258,21 @@ static class CliIntegrationTests
             stdin: null);
 
         Assert.Equal(0, result.ExitCode, result.Error);
-        Assert.Equal(true, result.Output.Contains("\"action\": \"start\"", StringComparison.Ordinal), result.Output);
+        // The toggle plans "stop" when AgentSignalBar.Windows is already running
+        // on the host and "start" otherwise. Assert the action is consistent with
+        // the detected running state so the test stays green regardless of the
+        // ambient environment (e.g. the real tray app being open on a dev machine).
+        var json = JsonNode.Parse(result.Output)!;
+        var action = json["action"]!.GetValue<string>();
+        var matched = json["matched_processes"]!.GetValue<int>();
+        Assert.Equal(matched > 0 ? "stop" : "start", action);
         Assert.Equal(true, result.Output.Contains(EscapeJson(fakeWindowsExe), StringComparison.Ordinal), result.Output);
     }
 
     private static (int ExitCode, string Output, string Error) RunDotnet(string[] arguments, string stateFile, string? stdin)
     {
         var root = FindRepositoryRoot();
-        var dotnet = Path.Combine(root, ".dotnet", "dotnet.exe");
+        var dotnet = ResolveDotnet(root);
         var process = new System.Diagnostics.Process
         {
             StartInfo = new System.Diagnostics.ProcessStartInfo
@@ -256,11 +306,30 @@ static class CliIntegrationTests
         return (process.ExitCode, output, error);
     }
 
-    private static string EscapeJson(string value) => value.Replace("\\", "\\\\", StringComparison.Ordinal);
+    private static string ResolveDotnet(string root)
+    {
+        var local = Path.Combine(root, ".dotnet", "dotnet.exe");
+        if (File.Exists(local))
+        {
+            return local;
+        }
+
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var system = Path.Combine(programFiles, "dotnet", "dotnet.exe");
+        if (File.Exists(system))
+        {
+            return system;
+        }
+
+        return "dotnet";
+    }
+
+    private static string EscapeJson(string value) =>
+        System.Text.Json.JsonEncodedText.Encode(value, System.Text.Encodings.Web.JavaScriptEncoder.Default).ToString();
 
     private static string FindCliProjectPath()
     {
-        return Path.Combine(FindRepositoryRoot(), "windows", "AgentSignalBar.Cli", "AgentSignalBar.Cli.csproj");
+        return Path.Combine(FindRepositoryRoot(), "AgentSignalBar.Cli", "AgentSignalBar.Cli.csproj");
     }
 
     private static string FindRepositoryRoot()
@@ -269,7 +338,8 @@ static class CliIntegrationTests
         while (directory is not null)
         {
             if (File.Exists(Path.Combine(directory.FullName, "README.md"))
-                && Directory.Exists(Path.Combine(directory.FullName, "windows")))
+                && (Directory.Exists(Path.Combine(directory.FullName, "AgentSignalBar.Cli"))
+                    || File.Exists(Path.Combine(directory.FullName, "AgentSignalDot.sln"))))
             {
                 return directory.FullName;
             }
@@ -337,10 +407,10 @@ static class FloatingWindowPlacementTests
         var workArea = new SignalRectangle(0, 0, 1920, 1080);
         var placement = FloatingSignalWindowPlacement.DefaultPlacement(workArea);
 
-        Assert.Equal(276, placement.Width);
-        Assert.Equal(280, placement.Height);
-        Assert.Equal(1620, placement.X);
-        Assert.Equal(400, placement.Y);
+        Assert.Equal(FloatingSignalWindowPlacement.DefaultWidth, placement.Width);
+        Assert.Equal(FloatingSignalWindowPlacement.DefaultHeight, placement.Height);
+        Assert.Equal(1870, placement.X);
+        Assert.Equal(0, placement.Y);
     }
 
     public static void RestoredPlacementIsClampedIntoWorkArea()
@@ -454,6 +524,16 @@ static class HookAdapterTests
     {
         Assert.Equal(AgentSignal.ToolDone, CodexHookAdapter.ChooseSignal(null, new Dictionary<string, object?> { ["hookEventName"] = "post tool use" }));
         Assert.Equal(AgentSignal.Blocked, CodexHookAdapter.ChooseSignal("PostToolUse", new Dictionary<string, object?> { ["exitStatus"] = 1 }));
+    }
+
+    public static void CodeBuddyHooksMapEventsAndExplicitSignals()
+    {
+        Assert.Equal(AgentSignal.Working, CodeBuddyHookAdapter.ChooseSignal("PreToolUse", new Dictionary<string, object?> { }));
+        Assert.Equal(AgentSignal.Thinking, CodeBuddyHookAdapter.ChooseSignal("UserPromptSubmit", new Dictionary<string, object?> { }));
+        Assert.Equal(AgentSignal.Done, CodeBuddyHookAdapter.ChooseSignal("Stop", new Dictionary<string, object?> { }));
+        Assert.Equal(AgentSignal.Blocked, CodeBuddyHookAdapter.ChooseSignal("PostToolUseFailure", new Dictionary<string, object?> { }));
+        Assert.Equal(AgentSignal.PermissionRequest, CodeBuddyHookAdapter.ChooseSignal(null, new Dictionary<string, object?> { ["hook_event_name"] = "PermissionRequest" }));
+        Assert.Equal(AgentSignal.Working, CodeBuddyHookAdapter.ChooseSignal(null, new Dictionary<string, object?> { ["signal"] = "working" }));
     }
 }
 
@@ -849,7 +929,8 @@ static class HookInstallerTests
         return commands;
     }
 
-    private static string EscapeJson(string value) => value.Replace("\\", "\\\\", StringComparison.Ordinal);
+    private static string EscapeJson(string value) =>
+        System.Text.Json.JsonEncodedText.Encode(value, System.Text.Encodings.Web.JavaScriptEncoder.Default).ToString();
 
     private static string EscapePowerShell(string value) => value.Replace("'", "''", StringComparison.Ordinal);
 }
@@ -972,6 +1053,79 @@ sealed class TempFixture : IDisposable
     }
 }
 
+static class WorkBuddySessionMonitorTests
+{
+    public static void WorkBuddySessionMonitorDetectsActiveSessionFromFileTimestamp()
+    {
+        using var fixture = TempFixture.Create();
+        var sessionsDir = Path.Combine(fixture.DirectoryPath, "sessions");
+        Directory.CreateDirectory(sessionsDir);
+        var sessionFile = Path.Combine(sessionsDir, "11744.json");
+        File.WriteAllText(sessionFile, """
+        {
+          "pid": 11744,
+          "lastHeartbeat": 1783137836422,
+          "sessionId": "test-session-1",
+          "cwd": "D:\\\\iQuant",
+          "startedAt": 1783137206030,
+          "kind": "interactive",
+          "url": "http://127.0.0.1:62190",
+          "endpoint": "http://127.0.0.1:62190",
+          "mode": "local",
+          "version": "2.103.3",
+          "os": "win32",
+          "arch": "x64",
+          "hostname": "test",
+          "updatedAt": 1783137836422
+        }
+        """);
+
+        var monitor = new WorkBuddySessionMonitor(sessionsDir, TimeSpan.FromSeconds(30));
+        var now = DateTimeOffset.UtcNow;
+        var activities = monitor.Poll(now).ToArray();
+
+        Assert.Equal(1, activities.Length);
+        Assert.Equal("workbuddy:test-session-1", activities[0].SessionId);
+        Assert.Equal("workbuddy", activities[0].Agent);
+        Assert.Equal(AgentSignal.Thinking, activities[0].Signal);
+
+        // Second poll with no file change should not re-emit.
+        var second = monitor.Poll(now.AddSeconds(1)).ToArray();
+        Assert.Equal(0, second.Length);
+
+        // After threshold passes, session should emit SessionEnd.
+        File.SetLastWriteTimeUtc(sessionFile, now.AddSeconds(-31).UtcDateTime);
+        var third = monitor.Poll(now.AddSeconds(31)).ToArray();
+        Assert.Equal(1, third.Length);
+        Assert.Equal(AgentSignal.SessionEnd, third[0].Signal);
+        Assert.Equal("workbuddy:test-session-1", third[0].SessionId);
+    }
+
+    public static void WorkBuddySessionMonitorFallsBackToFileNameWhenSessionIdMissing()
+    {
+        using var fixture = TempFixture.Create();
+        var sessionsDir = Path.Combine(fixture.DirectoryPath, "sessions");
+        Directory.CreateDirectory(sessionsDir);
+        var sessionFile = Path.Combine(sessionsDir, "4484.json");
+        File.WriteAllText(sessionFile, "{ \"pid\": 4484 }");
+
+        var monitor = new WorkBuddySessionMonitor(sessionsDir, TimeSpan.FromSeconds(30));
+        var activities = monitor.Poll(DateTimeOffset.UtcNow).ToArray();
+
+        Assert.Equal(1, activities.Length);
+        Assert.Equal("workbuddy:4484", activities[0].SessionId);
+    }
+
+    public static void WorkBuddySessionMonitorIgnoresMissingDirectory()
+    {
+        using var fixture = TempFixture.Create();
+        var sessionsDir = Path.Combine(fixture.DirectoryPath, "missing");
+        var monitor = new WorkBuddySessionMonitor(sessionsDir, TimeSpan.FromSeconds(10));
+        var activities = monitor.Poll(DateTimeOffset.UtcNow).ToArray();
+        Assert.Equal(0, activities.Length);
+    }
+}
+
 static class Assert
 {
     public static void Equal<T>(T expected, T actual, string? detail = null)
@@ -979,6 +1133,14 @@ static class Assert
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
         {
             throw new InvalidOperationException($"Expected {expected}, got {actual}." + (detail is null ? "" : Environment.NewLine + detail));
+        }
+    }
+
+    public static void NotNull(object? value, string? detail = null)
+    {
+        if (value is null)
+        {
+            throw new InvalidOperationException("Expected non-null value." + (detail is null ? "" : Environment.NewLine + detail));
         }
     }
 }

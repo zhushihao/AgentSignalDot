@@ -1,5 +1,59 @@
 namespace AgentSignalBar.Core;
 
+public static class CodeBuddyHookAdapter
+{
+    // WorkBuddy / CodeBuddy Code hooks
+    private static readonly Dictionary<string, AgentSignal> Events = HookAdapterHelpers.NormalizedEventMap(new()
+    {
+        ["SessionStart"] = AgentSignal.SessionStart,
+        ["UserPromptSubmit"] = AgentSignal.Thinking,
+        ["PreToolUse"] = AgentSignal.Working,
+        ["PostToolUse"] = AgentSignal.ToolDone,
+        ["PostToolUseFailure"] = AgentSignal.Blocked,
+        ["SubagentStart"] = AgentSignal.SubagentStart,
+        ["SubagentStop"] = AgentSignal.SubagentStop,
+        ["PermissionRequest"] = AgentSignal.PermissionRequest,
+        ["PermissionDenied"] = AgentSignal.Blocked,
+        ["Notification"] = AgentSignal.Notification,
+        ["Stop"] = AgentSignal.Done,
+        ["StopFailure"] = AgentSignal.Blocked,
+        ["SessionEnd"] = AgentSignal.SessionEnd
+    });
+
+    public static AgentSignal ChooseSignal(string? eventName, IReadOnlyDictionary<string, object?> payload)
+    {
+        if (HookAdapterHelpers.FirstString(payload, "signal", "signal_name", "lamp_signal") is { } explicitSignal
+            && AgentSignalParser.Normalize(explicitSignal) is { } normalizedSignal)
+        {
+            return normalizedSignal;
+        }
+
+        if (HookAdapterHelpers.FirstString(payload, "status", "state") is { } status)
+        {
+            if (AgentSignalParser.Normalize(status) is { } statusSignal)
+            {
+                return statusSignal;
+            }
+
+            if (HookAdapterHelpers.IsFailureWord(status))
+            {
+                return AgentSignal.Blocked;
+            }
+        }
+
+        if (HookAdapterHelpers.ContainsFailureMarker(payload))
+        {
+            return AgentSignal.Blocked;
+        }
+
+        var resolvedEvent = eventName
+            ?? HookAdapterHelpers.FirstString(payload, "hook_event_name", "event_name", "event", "hook", "type")
+            ?? "Stop";
+
+        return HookAdapterHelpers.SignalFor(resolvedEvent, Events) ?? AgentSignal.Attention;
+    }
+}
+
 public static class CodexHookAdapter
 {
     private static readonly Dictionary<string, AgentSignal> Events = HookAdapterHelpers.NormalizedEventMap(new()

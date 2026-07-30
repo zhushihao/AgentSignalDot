@@ -141,7 +141,7 @@ public static class ConnectionHealthCheck
 
             if (staleCount > 0)
             {
-                problems.Add($"{staleCount} duplicate/stale Agent Signal Bar command(s)");
+                problems.Add($"{staleCount} duplicate/stale Agent Signal Dot command(s)");
             }
 
             return new ConnectionHealthItem(

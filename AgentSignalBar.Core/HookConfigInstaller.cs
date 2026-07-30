@@ -12,6 +12,23 @@ public sealed record HookInstallPreview(
 
 public static class HookConfigInstaller
 {
+    public static readonly string[] CodeBuddyEvents =
+    [
+        "SessionStart",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "SubagentStart",
+        "SubagentStop",
+        "PermissionRequest",
+        "PermissionDenied",
+        "Notification",
+        "Stop",
+        "StopFailure",
+        "SessionEnd"
+    ];
+
     public static readonly string[] CodexEvents =
     [
         "SessionStart",
@@ -87,6 +104,25 @@ public static class HookConfigInstaller
     public static HookInstallPreview InstallCodex(string configPath, string agentSignalCliPath)
     {
         var preview = PreviewCodexInstall(configPath, agentSignalCliPath);
+        WriteIfChanged(preview);
+        return preview;
+    }
+
+    public static HookInstallPreview PreviewCodeBuddyInstall(string homeDirectory, string agentSignalCliPath)
+    {
+        var path = Path.Combine(homeDirectory, ".codebuddy", "settings.json");
+        return PreviewInstall(
+            "CodeBuddy",
+            path,
+            agentSignalCliPath,
+            CodeBuddyEvents,
+            passEventArgument: true,
+            matcher: "");
+    }
+
+    public static HookInstallPreview InstallCodeBuddy(string homeDirectory, string agentSignalCliPath)
+    {
+        var preview = PreviewCodeBuddyInstall(homeDirectory, agentSignalCliPath);
         WriteIfChanged(preview);
         return preview;
     }
@@ -171,7 +207,12 @@ public static class HookConfigInstaller
     public static bool IsAgentSignalHookCommand(string command, string targetName)
     {
         var normalized = command.ToLowerInvariant();
-        var verb = targetName == "Claude Code" ? "claude-hook" : "codex-hook";
+        var verb = targetName switch
+        {
+            "Claude Code" => "claude-hook",
+            "CodeBuddy" => "codebuddy-hook",
+            _ => "codex-hook"
+        };
         return normalized.Contains("agent-signal", StringComparison.Ordinal)
             && normalized.Contains(verb, StringComparison.Ordinal);
     }
@@ -234,7 +275,12 @@ public static class HookConfigInstaller
 
     public static string HookCommand(string agentSignalCliPath, string? eventName, string targetName)
     {
-        var verb = targetName == "Claude Code" ? "claude-hook" : "codex-hook";
+        var verb = targetName switch
+        {
+            "Claude Code" => "claude-hook",
+            "CodeBuddy" => "codebuddy-hook",
+            _ => "codex-hook"
+        };
         var command = $"& {QuotePowerShellArgument(agentSignalCliPath)} {verb}";
         if (!string.IsNullOrWhiteSpace(eventName))
         {

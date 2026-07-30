@@ -7,8 +7,8 @@ namespace AgentSignalBar.Windows;
 
 internal sealed class FloatingSignalForm : Form
 {
-    private const int WindowWidth = FloatingSignalWindowPlacement.DefaultWidth;
-    private const int WindowHeight = FloatingSignalWindowPlacement.DefaultHeight;
+    private const int WindowWidth = 10;
+    private const int WindowHeight = 10;
 
     // Win32 常量
     private const uint WS_EX_TOOLWINDOW = 0x00000080;
@@ -20,6 +20,21 @@ internal sealed class FloatingSignalForm : Form
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int left, top, right, bottom;
+    }
+
+    private const int SM_CXSCREEN = 0;
+    private const int SM_CYSCREEN = 1;
 
     private readonly Action showSettings;
     private readonly Action hideFloatingSignal;
@@ -41,7 +56,7 @@ internal sealed class FloatingSignalForm : Form
         signal = snapshot.Aggregate;
         isPositionLocked = Properties.Settings.Default.IsPositionLocked;
 
-        Text = "Agent Signal Bar";
+        Text = "Agent Signal Dot";
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;
@@ -96,8 +111,18 @@ internal sealed class FloatingSignalForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        // 确保始终置顶
         TopMost = true;
+
+        // Always force position: WinForms DPI translation puts it in wrong spot.
+        var sw = GetPhysicalScreenSize();
+        var x = Math.Clamp(Properties.Settings.Default.FloatingSignalX, 0, Math.Max(0, sw.width - Width));
+        var y = Math.Clamp(Properties.Settings.Default.FloatingSignalY, 0, Math.Max(0, sw.height - Height));
+        SetWindowPos(Handle, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+
+        Properties.Settings.Default.FloatingSignalX = x;
+        Properties.Settings.Default.FloatingSignalY = y;
+        Properties.Settings.Default.Save();
+
         ForceTopMost();
     }
 
@@ -117,6 +142,17 @@ internal sealed class FloatingSignalForm : Form
         {
             SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         }
+    }
+
+    private bool GetPhysicalBounds(out RECT rect)
+    {
+        rect = default;
+        return IsHandleCreated && !IsDisposed && GetWindowRect(Handle, out rect);
+    }
+
+    private static (int width, int height) GetPhysicalScreenSize()
+    {
+        return (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
     }
 
     /// <summary>
@@ -166,10 +202,10 @@ internal sealed class FloatingSignalForm : Form
         var delta = new Point(Cursor.Position.X - dragStartCursor.X, Cursor.Position.Y - dragStartCursor.Y);
         var next = new Point(dragStartLocation.X + delta.X, dragStartLocation.Y + delta.Y);
 
-        // 边界约束：至少保留 20x20 在屏幕内，防止完全拖出屏幕
-        var screen = Screen.FromPoint(next).Bounds;
-        next.X = Math.Max(screen.X - Width + 20, Math.Min(next.X, screen.Right - 20));
-        next.Y = Math.Max(screen.Y - Height + 20, Math.Min(next.Y, screen.Bottom - 20));
+        // Physical screen clamp — 0px margin, use Win32 metrics directly.
+        var sw = GetPhysicalScreenSize();
+        next.X = Math.Clamp(next.X, 0, Math.Max(0, sw.width - Width));
+        next.Y = Math.Clamp(next.Y, 0, Math.Max(0, sw.height - Height));
 
         Location = next;
     }
@@ -182,9 +218,26 @@ internal sealed class FloatingSignalForm : Form
         }
 
         isDragging = false;
-        Properties.Settings.Default.FloatingSignalX = Location.X;
-        Properties.Settings.Default.FloatingSignalY = Location.Y;
+
+        // Use Win32 physical coordinates to avoid DPI mismatch between
+        // Form.Location and Screen.Bounds.
+        if (!GetPhysicalBounds(out var physRect))
+        {
+            return;
+        }
+
+        var sw = GetPhysicalScreenSize();
+        var clampedX = Math.Clamp(physRect.left, 0, Math.Max(0, sw.width - Width));
+        var clampedY = Math.Clamp(physRect.top, 0, Math.Max(0, sw.height - Height));
+
+        // Save in physical coords so startup repositioning is consistent.
+        Properties.Settings.Default.FloatingSignalX = clampedX;
+        Properties.Settings.Default.FloatingSignalY = clampedY;
         Properties.Settings.Default.Save();
+
+        // Force the window to the clamped physical position.
+        SetWindowPos(Handle, HWND_TOPMOST, clampedX, clampedY, 0, 0,
+            SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
 
     private void OnMouseDoubleClick(object? sender, MouseEventArgs e)
@@ -229,13 +282,15 @@ internal sealed class FloatingSignalForm : Form
         var savedX = Properties.Settings.Default.FloatingSignalX;
         var savedY = Properties.Settings.Default.FloatingSignalY;
 
-        if (savedX >= 0 && savedY >= 0)
+        // Default: right-center of physical screen.
+        if (savedX < 0 || savedY < 0)
         {
-            return new Point(savedX, savedY);
+            var sw = GetPhysicalScreenSize();
+            savedX = Math.Max(0, sw.width - Width);
+            savedY = Math.Max(0, (sw.height - Height) / 2);
         }
 
-        // 首次启动默认左上角 (100, 100)，方便用户找到
-        return new Point(100, 100);
+        return new Point(savedX, savedY);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -254,14 +309,8 @@ internal sealed class FloatingSignalForm : Form
         var intensity = Intensity();
         var bounds = ClientRectangle;
 
-        // 固定 20px 直径的指示灯，居中显示
-        const int indicatorSize = 20;
-        var x = (bounds.Width - indicatorSize) / 2;
-        var y = (bounds.Height - indicatorSize) / 2;
-        var indicatorBounds = new Rectangle(x, y, indicatorSize, indicatorSize);
-
         using var lit = new SolidBrush(Color.FromArgb((int)(255 * intensity), color));
-        graphics.FillEllipse(lit, indicatorBounds);
+        graphics.FillEllipse(lit, bounds);
     }
 
     private void SetupToolTip()
