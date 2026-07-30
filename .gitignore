@@ -25,3 +25,11 @@ logs/
 
 # Local app data (runtime state)
 *.config.local
+
+# WorkBuddy
+.workbuddy/
+
+# Local verification and review artifacts
+.tmp/
+/deliverables/
+/nul

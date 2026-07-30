@@ -76,6 +76,21 @@ internal static class AgentSignalCli
                         PrintStatus(output, store.ApplySessionSignal(signal, parsed.SessionId ?? "global", parsed.Agent, parsed.Event), parsed.PrintJson);
                         return 0;
                     }
+                case "codebuddy-hook":
+                case "workbuddy-hook":
+                    {
+                        var parsed = ParsedArguments.Parse(rest);
+                        parsed.RequireAtMostOnePositional();
+                        var payload = ReadJsonObject(input);
+                        var eventName = parsed.Positionals.FirstOrDefault()
+                            ?? HookPayload.FirstString(payload, "hook_event_name", "event_name", "event", "hook", "type");
+                        var signal = CodeBuddyHookAdapter.ChooseSignal(eventName, payload);
+                        var sessionId = parsed.SessionId
+                            ?? HookPayload.FirstString(payload, "session_id", "conversation_id", "thread_id", "chat_id", "codebuddy_session_id")
+                            ?? "codebuddy-global";
+                        store.ApplySessionSignal(signal, sessionId, parsed.Agent ?? "codebuddy", parsed.Event ?? eventName);
+                        return 0;
+                    }
                 case "codex-hook":
                     {
                         var parsed = ParsedArguments.Parse(rest);
@@ -240,7 +255,7 @@ internal static class AgentSignalCli
             shortcut.TargetPath = cliPath;
             shortcut.Arguments = arguments;
             shortcut.WorkingDirectory = Path.GetDirectoryName(windowsExePath) ?? desktopDirectory;
-            shortcut.Description = "启动或关闭 Agent Signal Bar 红绿灯";
+            shortcut.Description = "启动或关闭 Agent Signal Dot 红绿灯";
             if (File.Exists(windowsExePath))
             {
                 shortcut.IconLocation = windowsExePath + ",0";
@@ -287,10 +302,10 @@ internal static class AgentSignalCli
             Path.Combine(baseDirectory, "..", "AgentSignalBar.Windows", "AgentSignalBar.Windows.exe"),
             repositoryRoot is null
                 ? ""
-                : Path.Combine(repositoryRoot, "windows", "AgentSignalBar.Windows", "bin", "Debug", "net8.0-windows", "AgentSignalBar.Windows.exe"),
+                :             Path.Combine(repositoryRoot, "AgentSignalBar.Windows", "bin", "Debug", "net8.0-windows", "AgentSignalBar.Windows.exe"),
             repositoryRoot is null
                 ? ""
-                : Path.Combine(repositoryRoot, "windows", "AgentSignalBar.Windows", "bin", "Release", "net8.0-windows", "AgentSignalBar.Windows.exe")
+                : Path.Combine(repositoryRoot, "AgentSignalBar.Windows", "bin", "Release", "net8.0-windows", "AgentSignalBar.Windows.exe")
         };
 
         foreach (var candidate in candidates.Where(candidate => !string.IsNullOrWhiteSpace(candidate)))
@@ -311,7 +326,8 @@ internal static class AgentSignalCli
         while (directory is not null)
         {
             if (File.Exists(Path.Combine(directory.FullName, "README.md"))
-                && Directory.Exists(Path.Combine(directory.FullName, "windows")))
+                && (Directory.Exists(Path.Combine(directory.FullName, "AgentSignalBar.Cli"))
+                    || File.Exists(Path.Combine(directory.FullName, "AgentSignalDot.sln"))))
             {
                 return directory.FullName;
             }
@@ -366,6 +382,13 @@ internal static class AgentSignalCli
                     ? HookConfigInstaller.PreviewCodexInstall(codexPath, cliPath)
                     : HookConfigInstaller.InstallCodex(codexPath, cliPath));
             }
+        }
+
+        if (parsed.HookTarget is "all" or "codebuddy" or "workbuddy")
+        {
+            previews.Add(parsed.DryRun
+                ? HookConfigInstaller.PreviewCodeBuddyInstall(home, cliPath)
+                : HookConfigInstaller.InstallCodeBuddy(home, cliPath));
         }
 
         return previews;
@@ -440,10 +463,15 @@ internal static class AgentSignalCli
                     "logs");
                 Directory.CreateDirectory(logDir);
                 var logPath = Path.Combine(logDir, $"hook-parse-failure-{DateTimeOffset.Now:yyyyMMdd-HHmmss-fff}.txt");
+                // 脱敏：仅记录异常类型、文本长度与前导上下文，不落完整原始 payload，
+                // 避免 hook payload 中的敏感字段（会话 id、token 等）明文暴露到本地日志。
+                var previewLength = Math.Min(120, text.Length);
                 File.WriteAllText(logPath,
-                    $"Exception: {ex}\n\n" +
-                    $"--- Original text ({text.Length} chars) ---\n{text}\n\n" +
-                    $"--- Cleaned text ({cleanedText.Length} chars) ---\n{cleanedText}",
+                    $"Exception: {ex.Message}\n\n" +
+                    $"Original length: {text.Length} chars\n" +
+                    $"Cleaned length: {cleanedText.Length} chars\n" +
+                    $"--- Leading context (first {previewLength} chars, payload body omitted) ---\n" +
+                    text[..previewLength],
                     System.Text.Encoding.UTF8);
             }
             catch
@@ -613,8 +641,10 @@ internal static class AgentSignalCli
           agent-signal <signal> [--session <id>] [--agent <name>] [--event <event>] [--json]
           agent-signal codex-hook [event]
           agent-signal claude-hook [event]
+          agent-signal codebuddy-hook [event]
+          agent-signal workbuddy-hook [event]
           agent-signal agent-hook [event]
-          agent-signal install-hooks [--target all|claude|codex] [--codex-scope user|project|both] [--dry-run] [--json]
+          agent-signal install-hooks [--target all|claude|codex|codebuddy|workbuddy] [--codex-scope user|project|both] [--dry-run] [--json]
           agent-signal clear-warning [--json]
           agent-signal reset [--json]
         """);
@@ -855,7 +885,7 @@ internal sealed class ParsedArguments
                     i += 1;
                     break;
                 case "--target":
-                    parsed.HookTarget = OneOf(OptionValue(args, i, value), value, ["all", "claude", "codex"]);
+                    parsed.HookTarget = OneOf(OptionValue(args, i, value), value, ["all", "claude", "codex", "codebuddy", "workbuddy"]);
                     i += 2;
                     break;
                 case "--codex-scope":

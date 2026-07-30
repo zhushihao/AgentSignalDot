@@ -21,7 +21,7 @@ internal sealed class SettingsForm : Form
         this.snapshot = snapshot;
         this.setFloatingSignalVisible = setFloatingSignalVisible;
         this.repositionFloatingSignal = repositionFloatingSignal;
-        Text = "Agent Signal Bar";
+        Text = "Agent Signal Dot";
         MinimumSize = new Size(820, 620);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(246, 247, 249);
@@ -168,13 +168,18 @@ internal sealed class SettingsForm : Form
         panel.Controls.Add(Button("安装/检查 Claude Code Hooks", () =>
         {
             var preview = HookConfigInstaller.InstallClaude(WindowsUserPaths.HomeDirectory(), WindowsCliLocator.FindAgentSignalCli());
-            MessageBox.Show($"Claude Code hooks 已写入:\n{preview.Path}", "Agent Signal Bar");
+            MessageBox.Show($"Claude Code hooks 已写入:\n{preview.Path}", "Agent Signal Dot");
         }));
         panel.Controls.Add(Button("安装/检查 Codex Hooks", () =>
         {
             var path = Path.Combine(WindowsUserPaths.HomeDirectory(), ".codex", "hooks.json");
             var preview = HookConfigInstaller.InstallCodex(path, WindowsCliLocator.FindAgentSignalCli());
-            MessageBox.Show($"Codex hooks 已写入:\n{preview.Path}", "Agent Signal Bar");
+            MessageBox.Show($"Codex hooks 已写入:\n{preview.Path}", "Agent Signal Dot");
+        }));
+        panel.Controls.Add(Button("安装/检查 WorkBuddy Hooks", () =>
+        {
+            var preview = HookConfigInstaller.InstallCodeBuddy(WindowsUserPaths.HomeDirectory(), WindowsCliLocator.FindAgentSignalCli());
+            MessageBox.Show($"WorkBuddy / CodeBuddy hooks 已写入:\n{preview.Path}", "Agent Signal Dot");
         }));
         panel.Controls.Add(Button("打开状态文件目录", () =>
         {
@@ -213,7 +218,7 @@ internal sealed class SettingsForm : Form
 
         diagnosticsSummaryLabel.AutoSize = true;
         diagnosticsSummaryLabel.Margin = new Padding(0, 0, 0, 12);
-        diagnosticsSummaryLabel.Text = "点击刷新诊断，检查 hooks、状态文件和 Codex 日志。";
+        diagnosticsSummaryLabel.Text = "点击刷新诊断，检查 hooks、状态文件、Codex 日志和 WorkBuddy 日志。";
         diagnosticsSummaryLabel.Font = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular, GraphicsUnit.Point);
 
         diagnosticsList.Dock = DockStyle.Fill;
@@ -340,7 +345,7 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             Padding = new Padding(20),
             Font = new Font("Microsoft YaHei UI", 11f, FontStyle.Regular, GraphicsUnit.Point),
-            Text = "Agent Signal Bar for Windows\n本地 AI Agent 的 Windows 托盘信号灯。\n\n支持 Claude Code / Codex hooks，本地状态文件和 Windows Mica/Acrylic 窗口效果。"
+            Text = "Agent Signal Dot for Windows\n本地 AI Agent 的 Windows 托盘信号灯。\n\n支持 Claude Code / Codex / WorkBuddy (CodeBuddy) hooks，本地状态文件和 Windows Mica/Acrylic 窗口效果。"
         };
         page.Controls.Add(label);
         return page;
