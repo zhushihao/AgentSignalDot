@@ -115,6 +115,29 @@ public sealed class SignalStateStore
 
     public SignalSnapshot ClearSessions() => SetManualSignal(AgentSignal.Idle);
 
+    // Removes every session owned by the given agent and recomputes the
+    // aggregate. Used by the "track WorkBuddy / CodeBuddy" toggle so turning
+    // tracking off immediately clears the stale dot instead of waiting for TTL.
+    public SignalSnapshot ClearAgentSessions(string agent)
+    {
+        return WithLock(() =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            var document = ReadDocument() ?? new SignalStateDocument();
+            PruneRuntimeSessions(document, now);
+            document.Sessions = document.Sessions
+                .Where(pair => pair.Value.Agent != agent)
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            document.Aggregate = document.Sessions.Count == 0 && document.Aggregate?.DisplayState() != DisplayState.Paused
+                ? AgentSignal.Idle
+                : document.AggregateSignal();
+            AppendEvent(document, "manual", "manual", AgentSignal.Idle, $"ClearAgent:{agent}", now);
+            document.UpdatedAt = now;
+            WriteDocument(document);
+            return document.ToSnapshot(StateFilePath);
+        });
+    }
+
     public SignalSnapshot ApplySessionSignal(
         AgentSignal signal,
         string sessionId,

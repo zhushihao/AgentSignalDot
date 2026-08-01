@@ -56,4 +56,12 @@ internal sealed partial class Settings : global::System.Configuration.Applicatio
         get => (bool)this[nameof(IsPositionLocked)];
         set => this[nameof(IsPositionLocked)] = value;
     }
+
+    [global::System.Configuration.UserScopedSettingAttribute()]
+    [global::System.Configuration.DefaultSettingValueAttribute("True")]
+    public bool TrackWorkBuddy
+    {
+        get => (bool)this[nameof(TrackWorkBuddy)];
+        set => this[nameof(TrackWorkBuddy)] = value;
+    }
 }

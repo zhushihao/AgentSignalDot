@@ -14,6 +14,7 @@ internal sealed class SettingsForm : Form
     private readonly Label diagnosticsSummaryLabel = new();
     private readonly ListView diagnosticsList = new();
     private SignalSnapshot snapshot;
+    private Button? workBuddyHooksButton;
 
     public SettingsForm(SignalStateStore store, SignalSnapshot snapshot, Action<bool> setFloatingSignalVisible, Action? repositionFloatingSignal = null)
     {
@@ -30,6 +31,7 @@ internal sealed class SettingsForm : Form
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96F, 96F);
         BuildUi();
+        SyncHookButtons();
         UpdateSnapshot(snapshot);
         ApplySavedBackdrop();
     }
@@ -124,6 +126,28 @@ internal sealed class SettingsForm : Form
         floatingSignal.CheckedChanged += (_, _) => setFloatingSignalVisible(floatingSignal.Checked);
         panel.Controls.Add(floatingSignal);
 
+        var trackWorkBuddy = new CheckBox
+        {
+            Text = "跟踪 WorkBuddy / CodeBuddy 状态",
+            Checked = Properties.Settings.Default.TrackWorkBuddy,
+            AutoSize = true,
+            Margin = new Padding(0, 8, 0, 0)
+        };
+        trackWorkBuddy.CheckedChanged += (_, _) =>
+        {
+            Properties.Settings.Default.TrackWorkBuddy = trackWorkBuddy.Checked;
+            Properties.Settings.Default.Save();
+            // Turning tracking off must clear the stale WorkBuddy dot immediately
+            // rather than waiting for TTL; there is no point showing a signal we
+            // are no longer monitoring.
+            if (!trackWorkBuddy.Checked)
+            {
+                UpdateSnapshot(store.ClearAgentSessions("workbuddy"));
+            }
+            SyncHookButtons();
+        };
+        panel.Controls.Add(trackWorkBuddy);
+
         var lockPosition = new CheckBox
         {
             Text = "锁定悬浮灯位置（禁用拖拽）",
@@ -176,11 +200,13 @@ internal sealed class SettingsForm : Form
             var preview = HookConfigInstaller.InstallCodex(path, WindowsCliLocator.FindAgentSignalCli());
             MessageBox.Show($"Codex hooks 已写入:\n{preview.Path}", "Agent Signal Dot");
         }));
-        panel.Controls.Add(Button("安装/检查 WorkBuddy Hooks", () =>
+        var workBuddyHooksButton = Button("安装/检查 WorkBuddy Hooks", () =>
         {
             var preview = HookConfigInstaller.InstallCodeBuddy(WindowsUserPaths.HomeDirectory(), WindowsCliLocator.FindAgentSignalCli());
             MessageBox.Show($"WorkBuddy / CodeBuddy hooks 已写入:\n{preview.Path}", "Agent Signal Dot");
-        }));
+        });
+        panel.Controls.Add(workBuddyHooksButton);
+        this.workBuddyHooksButton = workBuddyHooksButton;
         panel.Controls.Add(Button("打开状态文件目录", () =>
         {
             var directory = Path.GetDirectoryName(store.StateFilePath) ?? ".";
@@ -189,6 +215,17 @@ internal sealed class SettingsForm : Form
         }));
         page.Controls.Add(panel);
         return page;
+    }
+
+    // The WorkBuddy/CodeBuddy hooks only make sense while we are tracking that
+    // agent. When the user turns tracking off, disable the install button so we
+    // don't invite installing a hook for a source we intentionally ignore.
+    private void SyncHookButtons()
+    {
+        if (workBuddyHooksButton is not null)
+        {
+            workBuddyHooksButton.Enabled = Properties.Settings.Default.TrackWorkBuddy;
+        }
     }
 
     private TabPage DiagnosticsPage()

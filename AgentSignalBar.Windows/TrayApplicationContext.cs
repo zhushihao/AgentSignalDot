@@ -73,8 +73,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
             try
             {
                 PollCodexSessionLogs();
-                PollWorkBuddySessionLogs();
-                PollWorkBuddySessions();
+                // WorkBuddy / CodeBuddy tracking is a user-toggleable feature
+                // (Settings › 通用 › "跟踪 WorkBuddy / CodeBuddy 状态"). When
+                // off we skip both WorkBuddy pollers so the dot stops reflecting
+                // WorkBuddy activity. The setting is read every tick, so the
+                // toggle takes effect on the next poll without a restart.
+                if (Properties.Settings.Default.TrackWorkBuddy)
+                {
+                    PollWorkBuddySessionLogs();
+                    PollWorkBuddySessions();
+                }
             }
             catch (Exception ex)
             {
