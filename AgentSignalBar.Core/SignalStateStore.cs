@@ -200,6 +200,15 @@ public sealed class SignalStateStore
                     document.Aggregate = document.AggregateSignal();
                     break;
                 default:
+                    // 守卫：终态/失败信号（blocked/error/stale）只能更新已有会话记录，
+                    // 不能创建新会话。真实 hook 行为中 StopFailure 前总有 SessionStart/
+                    // PreToolUse 等活跃事件先创建了会话；若会话不存在就收到 blocked，
+                    // 说明它已被 SessionEnd/Done 等结束事件移除（事件乱序），不应复活。
+                    // 活跃信号（working/thinking/tool_done/permission 等）仍可正常创建新会话。
+                    if (!document.Sessions.ContainsKey(sessionId) && IsRevivalBlocked(signal))
+                    {
+                        break;
+                    }
                     document.Sessions[sessionId] = new SessionRecord(agent, signal, lastEvent, eventDate);
                     document.Aggregate = document.AggregateSignal();
                     break;
@@ -318,6 +327,16 @@ public sealed class SignalStateStore
     {
         return signal.DisplayState() is DisplayState.NeedsReview or DisplayState.Permission
             or DisplayState.Blocked or DisplayState.Stale or DisplayState.Paused;
+    }
+
+    /// <summary>
+    /// 判断某信号是否属于「终态/失败态」——这类信号不应复活已被结束事件移除的会话。
+    /// 只有活跃信号（working/thinking/tool_done/permission_request 等）才允许创建新会话记录。
+    /// </summary>
+    private static bool IsRevivalBlocked(AgentSignal signal)
+    {
+        // Blocked 覆盖 AgentSignal.Blocked/Failure/Error/Exception/MaxTokens（见 DisplayState 映射）
+        return signal.DisplayState() is DisplayState.Blocked or DisplayState.Stale;
     }
 
     private static bool ShouldClearWarning(AgentSignal signal)

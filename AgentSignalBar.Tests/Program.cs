@@ -77,6 +77,7 @@ internal static class Program
             ("ready session rows are removed when reading snapshot", StateStoreTests.ReadySessionRowsAreRemovedWhenReadingSnapshot),
             ("Claude SessionEnd clears its own blocked state", StateStoreTests.ClaudeSessionEndClearsItsOwnBlockedState),
             ("Claude Done clears its own blocked state", StateStoreTests.ClaudeDoneClearsItsOwnBlockedState),
+            ("Late StopFailure does not revive ended session", StateStoreTests.LateStopFailureDoesNotReviveEndedSession),
             ("corrupt status file reads as stale", StateStoreTests.CorruptStatusFileReadsAsStale),
             ("hook installer dry run builds Claude settings without writing", HookInstallerTests.DryRunBuildsClaudeSettingsWithoutWriting),
             ("hook installer emits PowerShell-safe Windows commands", HookInstallerTests.HookInstallerEmitsPowerShellSafeWindowsCommands),
@@ -810,6 +811,8 @@ static class StateStoreTests
         using var fixture = TempFixture.Create();
         var store = new SignalStateStore(Path.Combine(fixture.DirectoryPath, "status.json"));
 
+        // 真实 hook 序列：PreToolUse(working) 创建会话 → StopFailure(blocked) → SessionEnd 清除
+        store.ApplySessionSignal(AgentSignal.Working, "claude-session-x", "claude-code", "PreToolUse");
         store.ApplySessionSignal(AgentSignal.Blocked, "claude-session-x", "claude-code", "StopFailure");
         var blocked = store.ReadSnapshot();
         Assert.Equal(AgentSignal.Blocked, blocked.Aggregate);
@@ -829,6 +832,30 @@ static class StateStoreTests
         store.ApplySessionSignal(AgentSignal.Blocked, "claude-session-y", "claude-code", "StopFailure");
         var ended = store.ApplySessionSignal(AgentSignal.Done, "claude-session-y", "claude-code", "Stop");
         Assert.Equal(false, ended.Sessions.Any(s => s.SessionId == "claude-session-y" && s.Signal == AgentSignal.Blocked));
+    }
+
+    // 回归：Claude Code hook 事件乱序 —— SessionEnd 先到（清掉会话），StopFailure 延迟到达。
+    // 修复前 default 分支无条件 Sessions[sessionId]=new... 把 blocked 复活回活跃 map → 红灯又亮。
+    // 修复后 IsRevivalBlocked 守卫阻止终态信号复活已移除会话。
+    public static void LateStopFailureDoesNotReviveEndedSession()
+    {
+        using var fixture = TempFixture.Create();
+        var store = new SignalStateStore(Path.Combine(fixture.DirectoryPath, "status.json"));
+
+        // 模拟真实事件序列（来自 status.json 实锤）：
+        //   PreToolUse(working,创建会话) → SessionEnd(移除) → StopFailure(延迟到达，不应复活)
+        store.ApplySessionSignal(AgentSignal.Working, "cc1d9e95", "claude-code", "PreToolUse");
+        var active = store.ReadSnapshot();
+        Assert.Equal(true, active.Sessions.Any(s => s.SessionId == "cc1d9e95"));
+
+        store.ApplySessionSignal(AgentSignal.SessionEnd, "cc1d9e95", "claude-code", "SessionEnd");
+        var ended = store.ReadSnapshot();
+        Assert.Equal(false, ended.Sessions.Any(s => s.SessionId == "cc1d9e95")); // 已移除
+
+        // 关键断言：延迟到达的 StopFailure 不应复活该会话
+        var afterFailure = store.ApplySessionSignal(AgentSignal.Blocked, "cc1d9e95", "claude-code", "StopFailure");
+        Assert.Equal(false, afterFailure.Sessions.Any(s => s.SessionId == "cc1d9e95"));
+        Assert.Equal(false, afterFailure.Aggregate == AgentSignal.Blocked);
     }
 }
 
