@@ -75,6 +75,8 @@ internal static class Program
             ("Codex done preserves same conversation permission state", StateStoreTests.CodexDonePreservesSameConversationPermissionState),
             ("session start does not create active session rows", StateStoreTests.SessionStartDoesNotCreateActiveSessionRows),
             ("ready session rows are removed when reading snapshot", StateStoreTests.ReadySessionRowsAreRemovedWhenReadingSnapshot),
+            ("Claude SessionEnd clears its own blocked state", StateStoreTests.ClaudeSessionEndClearsItsOwnBlockedState),
+            ("Claude Done clears its own blocked state", StateStoreTests.ClaudeDoneClearsItsOwnBlockedState),
             ("corrupt status file reads as stale", StateStoreTests.CorruptStatusFileReadsAsStale),
             ("hook installer dry run builds Claude settings without writing", HookInstallerTests.DryRunBuildsClaudeSettingsWithoutWriting),
             ("hook installer emits PowerShell-safe Windows commands", HookInstallerTests.HookInstallerEmitsPowerShellSafeWindowsCommands),
@@ -798,6 +800,35 @@ static class StateStoreTests
 
         Assert.Equal(AgentSignal.Stale, snapshot.Aggregate);
         Assert.Equal(0, snapshot.Sessions.Count);
+    }
+
+    // 回归：真实故障 — Claude Code 的 StopFailure(blocked) 紧跟 SessionEnd（同一会话）
+    // 曾因 SessionEnd 特判分支对 blocked 做"保留"而粘死红灯到 TTL。修复后 SessionEnd
+    // 应清除当前会话的 blocked 残留（与参考实现 default 覆盖一致）。
+    public static void ClaudeSessionEndClearsItsOwnBlockedState()
+    {
+        using var fixture = TempFixture.Create();
+        var store = new SignalStateStore(Path.Combine(fixture.DirectoryPath, "status.json"));
+
+        store.ApplySessionSignal(AgentSignal.Blocked, "claude-session-x", "claude-code", "StopFailure");
+        var blocked = store.ReadSnapshot();
+        Assert.Equal(AgentSignal.Blocked, blocked.Aggregate);
+        Assert.Equal(true, blocked.Sessions.Any(s => s.SessionId == "claude-session-x" && s.Signal == AgentSignal.Blocked));
+
+        var ended = store.ApplySessionSignal(AgentSignal.SessionEnd, "claude-session-x", "claude-code", "SessionEnd");
+        Assert.Equal(false, ended.Sessions.Any(s => s.SessionId == "claude-session-x"));
+        Assert.Equal(false, ended.Aggregate == AgentSignal.Blocked);
+    }
+
+    // 回归：Done 对同一会话应覆盖（清除）其 blocked 残留，而非保留。
+    public static void ClaudeDoneClearsItsOwnBlockedState()
+    {
+        using var fixture = TempFixture.Create();
+        var store = new SignalStateStore(Path.Combine(fixture.DirectoryPath, "status.json"));
+
+        store.ApplySessionSignal(AgentSignal.Blocked, "claude-session-y", "claude-code", "StopFailure");
+        var ended = store.ApplySessionSignal(AgentSignal.Done, "claude-session-y", "claude-code", "Stop");
+        Assert.Equal(false, ended.Sessions.Any(s => s.SessionId == "claude-session-y" && s.Signal == AgentSignal.Blocked));
     }
 }
 

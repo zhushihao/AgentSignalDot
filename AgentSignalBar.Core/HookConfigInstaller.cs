@@ -213,8 +213,14 @@ public static class HookConfigInstaller
             "CodeBuddy" => "codebuddy-hook",
             _ => "codex-hook"
         };
+        if (!normalized.Contains(verb, StringComparison.Ordinal))
+        {
+            return false;
+        }
+        // 认我们自己的两种 exe：CLI 副本 (agent-signal.exe)，或旧版 bug 写入的托盘 exe
+        // (AgentSignalBar.Windows.exe)。只有 verb 命中时才算，避免误清外部工具。
         return normalized.Contains("agent-signal", StringComparison.Ordinal)
-            && normalized.Contains(verb, StringComparison.Ordinal);
+            || normalized.Contains("agentsignalbar.windows", StringComparison.Ordinal);
     }
 
     private static void WriteIfChanged(HookInstallPreview preview)

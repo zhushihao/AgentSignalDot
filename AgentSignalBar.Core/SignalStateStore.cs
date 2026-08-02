@@ -40,6 +40,7 @@ public sealed class SignalStateStore
             var document = ReadDocument();
             if (document is null)
             {
+                WriteDiagnostic("StalePathA", $"ReadDocument returned null -> Aggregate=Stale. File={StateFilePath}");
                 return new SignalStateDocument
                 {
                     Aggregate = AgentSignal.Stale,
@@ -167,44 +168,35 @@ public sealed class SignalStateStore
                     document.Aggregate = AgentSignal.Off;
                     break;
                 case AgentSignal.SessionEnd:
+                    // 清掉同 agent 家族里其他已结束的常规会话，但保留其中仍在 blocked/permission
+                    // 的会话（属于不同对话、仍需关注）。当前会话结束：直接清除其 blocked/permission
+                    // 残留，否则会与参考实现（SessionEnd 走覆盖而非保留）不一致，导致红灯粘到 TTL。
                     RemoveOrdinarySessionsForAgent(document, sessionId, agent, PreserveAgainstSessionEnd);
-                    if (!document.Sessions.TryGetValue(sessionId, out var sessionEndCurrent)
-                        || !PreserveAgainstSessionEnd(sessionEndCurrent.Signal))
-                    {
-                        document.Sessions.Remove(sessionId);
-                    }
+                    document.Sessions.Remove(sessionId);
                     document.Aggregate = document.Sessions.Count == 0 && document.Aggregate?.DisplayState() != DisplayState.Paused
                         ? AgentSignal.Idle
                         : document.AggregateSignal();
                     break;
                 case AgentSignal.TurnEnd:
-                    if (!document.Sessions.TryGetValue(sessionId, out var turnEndCurrent)
-                        || !BlocksTurnEndClear(turnEndCurrent.Signal))
-                    {
-                        document.Sessions.Remove(sessionId);
-                    }
+                    // 当前轮次结束：清除其告警残留（不再对 blocked/permission 保留）。
+                    document.Sessions.Remove(sessionId);
                     document.Aggregate = document.Sessions.Count == 0 && document.Aggregate?.DisplayState() != DisplayState.Paused
                         ? AgentSignal.Idle
                         : document.AggregateSignal();
                     break;
                 case AgentSignal.Idle:
                 case AgentSignal.SessionStart:
-                    if (!document.Sessions.TryGetValue(sessionId, out var readyCurrent)
-                        || !PreserveAgainstReadySignal(readyCurrent.Signal))
-                    {
-                        document.Sessions.Remove(sessionId);
-                    }
+                    // 进入就绪/空闲：清除当前会话的任何残留告警（blocked/permission 不再保留）。
+                    document.Sessions.Remove(sessionId);
                     document.Aggregate = document.Sessions.Count == 0 && document.Aggregate?.DisplayState() != DisplayState.Paused
                         ? AgentSignal.Idle
                         : document.AggregateSignal();
                     break;
                 case AgentSignal.Done:
+                    // 清掉同 agent 家族里其他已完成/常规的会话，保留仍在告警的。
+                    // 当前会话 Done：覆盖写入（含 blocked/permission），不保留——与参考实现一致。
                     RemoveOrdinarySessionsForAgent(document, sessionId, agent, PreserveAgainstCompletedSignal);
-                    if (!document.Sessions.TryGetValue(sessionId, out var doneCurrent)
-                        || !PreserveAgainstCompletedSignal(doneCurrent.Signal))
-                    {
-                        document.Sessions[sessionId] = new SessionRecord(agent, signal, lastEvent, eventDate);
-                    }
+                    document.Sessions[sessionId] = new SessionRecord(agent, signal, lastEvent, eventDate);
                     document.Aggregate = document.AggregateSignal();
                     break;
                 default:
@@ -253,11 +245,14 @@ public sealed class SignalStateStore
 
     private void PrepareSnapshotDocument(SignalStateDocument document, DateTimeOffset now)
     {
+        var beforeSessions = document.Sessions.ToDictionary(p => p.Key, p => p.Value.Signal.ToString());
         var prune = PruneRuntimeSessions(document, now);
         var removedReadySessions = RemoveReadySessions(document);
         CompactEventHistory(document);
         if ((prune.HadSessionsBeforePrune || removedReadySessions) && document.Sessions.Count == 0 && document.Aggregate?.DisplayState() != DisplayState.Paused)
         {
+            var removed = string.Join(",", beforeSessions.Select(kv => $"{kv.Key}:{kv.Value}"));
+            WriteDiagnostic("StalePathB", $"Aggregate->{(prune.RemovedNonCompletedSession ? "Stale" : "Idle")}; HadBefore={prune.HadSessionsBeforePrune}; RemovedReady={removedReadySessions}; RemovedNonCompleted={prune.RemovedNonCompletedSession}; priorAggregate={document.Aggregate}; removedSessions=[{removed}]");
             document.Aggregate = prune.RemovedNonCompletedSession ? AgentSignal.Stale : AgentSignal.Idle;
             document.UpdatedAt = now;
         }
@@ -323,17 +318,6 @@ public sealed class SignalStateStore
     {
         return signal.DisplayState() is DisplayState.NeedsReview or DisplayState.Permission
             or DisplayState.Blocked or DisplayState.Stale or DisplayState.Paused;
-    }
-
-    private static bool PreserveAgainstReadySignal(AgentSignal signal)
-    {
-        return signal.DisplayState() is DisplayState.NeedsReview or DisplayState.Permission
-            or DisplayState.Blocked or DisplayState.Stale or DisplayState.Paused;
-    }
-
-    private static bool BlocksTurnEndClear(AgentSignal signal)
-    {
-        return signal.DisplayState() is DisplayState.Permission or DisplayState.Blocked;
     }
 
     private static bool ShouldClearWarning(AgentSignal signal)
@@ -470,13 +454,46 @@ public sealed class SignalStateStore
             var json = File.ReadAllText(StateFilePath, Encoding.UTF8);
             return JsonSerializer.Deserialize<SignalStateDocument>(json, jsonOptions) ?? new SignalStateDocument();
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            WriteDiagnostic("ReadDocument", $"JsonException: {ex.Message}");
             return null;
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            WriteDiagnostic("ReadDocument", $"IOException: {ex.Message}");
             return null;
+        }
+    }
+
+    private static readonly object DiagLock = new();
+
+    private void WriteDiagnostic(string tag, string detail)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(StateFilePath);
+            if (string.IsNullOrWhiteSpace(dir))
+            {
+                return;
+            }
+
+            var path = Path.Combine(dir, "diag.log");
+            var existing = new FileInfo(path);
+            if (existing.Exists && existing.Length > 1_000_000)
+            {
+                File.WriteAllText(path, string.Empty, Encoding.UTF8);
+            }
+
+            var line = $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff} [{tag}] {detail}{Environment.NewLine}";
+            lock (DiagLock)
+            {
+                File.AppendAllText(path, line, Encoding.UTF8);
+            }
+        }
+        catch
+        {
+            // diagnostics must never break the main flow
         }
     }
 
